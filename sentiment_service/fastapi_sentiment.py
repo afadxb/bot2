@@ -4,6 +4,10 @@ from typing import Callable, List
 import numpy as np
 import logging
 import os
+import sys
+
+sys.path.append(os.path.dirname(__file__) + '/..')
+from alerts import monitor
 
 try:  # optional dependency; endpoints handle absence gracefully
     import MySQLdb as mdb
@@ -75,6 +79,7 @@ try:  # pragma: no cover - heavy dependency; exercised in production
 
     sentiment_fn: Callable[[str], float] = finbert_sentiment
     logger.info("FinBERT model loaded")
+    USING_FALLBACK = False
 except Exception as exc:  # pragma: no cover - exercised when model unavailable
     logger.warning("FinBERT unavailable, using heuristic sentiment: %s", exc)
 
@@ -108,6 +113,7 @@ except Exception as exc:  # pragma: no cover - exercised when model unavailable
         return float(score)
 
     sentiment_fn = stub_sentiment
+    USING_FALLBACK = True
 
 
 def normalize(x: float) -> float:
@@ -117,6 +123,7 @@ def normalize(x: float) -> float:
 @app.post("/score")
 def score(item: Item):
     raw = [sentiment_fn(t) for t in item.texts]
+    monitor.record_model_fallback(USING_FALLBACK)
     return {"scores": [normalize(x) for x in raw]}
 
 
@@ -127,14 +134,19 @@ def sentiment(symbol: str):
         conn = _get_conn()
     except Exception as exc:  # pragma: no cover - exercised when db missing
         logger.error("DB connection failed: %s", exc)
+        monitor.record_db_error(str(exc))
         raise HTTPException(status_code=503, detail="database unavailable")
     with conn.cursor() as cur:
-        cur.execute(
-            "SELECT ts, news_score, social_score, mood_score, regime_adj "
-            "FROM sentiment_agg WHERE symbol=%s ORDER BY ts DESC LIMIT 1",
-            (symbol,),
-        )
-        row = cur.fetchone()
+        try:
+            cur.execute(
+                "SELECT ts, news_score, social_score, mood_score, regime_adj "
+                "FROM sentiment_agg WHERE symbol=%s ORDER BY ts DESC LIMIT 1",
+                (symbol,),
+            )
+            row = cur.fetchone()
+        except Exception as exc:
+            monitor.record_db_error(str(exc))
+            raise HTTPException(status_code=500, detail="database error")
     if not row:
         raise HTTPException(status_code=404, detail="symbol not found")
     ts, news, social, mood, regime = row
@@ -155,14 +167,19 @@ def latest():
         conn = _get_conn()
     except Exception as exc:  # pragma: no cover - exercised when db missing
         logger.error("DB connection failed: %s", exc)
+        monitor.record_db_error(str(exc))
         raise HTTPException(status_code=503, detail="database unavailable")
     with conn.cursor() as cur:
-        cur.execute(
-            "SELECT s.symbol, s.ts, s.news_score, s.social_score, s.mood_score, s.regime_adj "
-            "FROM sentiment_agg s JOIN (SELECT symbol, MAX(ts) ts FROM sentiment_agg GROUP BY symbol) m "
-            "ON s.symbol=m.symbol AND s.ts=m.ts"
-        )
-        rows = cur.fetchall()
+        try:
+            cur.execute(
+                "SELECT s.symbol, s.ts, s.news_score, s.social_score, s.mood_score, s.regime_adj "
+                "FROM sentiment_agg s JOIN (SELECT symbol, MAX(ts) ts FROM sentiment_agg GROUP BY symbol) m "
+                "ON s.symbol=m.symbol AND s.ts=m.ts"
+            )
+            rows = cur.fetchall()
+        except Exception as exc:
+            monitor.record_db_error(str(exc))
+            raise HTTPException(status_code=500, detail="database error")
     res = []
     for sym, ts, news, social, mood, regime in rows:
         res.append(
