@@ -36,6 +36,7 @@ Key variables:
 - `SOURCES` – feeds to enable (`news,stocktwits` by default, add `reddit` if desired)
 - `NEWS_FEEDS` – comma separated RSS URLs for the news worker
 - Database credentials for the MySQL instance
+- `METRICS_PORT` – port for worker Prometheus metrics (default `9000`)
 
 After configuring `.env`, build and run the stack.
 
@@ -79,12 +80,19 @@ Set up push notifications to catch issues early:
 
 ### Dashboards
 
-Recommended views for ongoing monitoring:
+The Compose stack includes two ready‑to‑use views:
 
-- **System health** – worker/API uptime and latency
-- **Per-symbol sentiment time-series** – track mood per asset
-- **Component contributions** – news vs. social vs. regime adjustments
-- **Regime over time** – visualise how the adjustment factor shifts
+1. **Operator dashboard** (Grafana + Prometheus)
+   - Tracks ingestion throughput (`ingest_items_total`), error rates (`ingest_errors_total`),
+     fusion lag (`fusion_lag_seconds`) and API latency.
+   - Metrics are exposed at `http://localhost:8000/metrics` for the API and on port `9000` for the worker.
+   - Grafana runs on [http://localhost:3000](http://localhost:3000) (default `admin`/`admin`).
+
+2. **Trader dashboard** (Metabase)
+   - Renders per‑symbol sentiment, component contributions and freshness directly from MySQL.
+   - Accessible at [http://localhost:3001](http://localhost:3001) (first run prompts for admin setup).
+
+Prometheus scrapes both services with `prometheus.yml` (included). Customize Grafana/Metabase as desired.
 
 ## Quickstart
 

@@ -1,0 +1,8 @@
+scrape_configs:
+  - job_name: sentiment
+    static_configs:
+      - targets: ['sentiment:8000']
+  - job_name: worker
+    metrics_path: /
+    static_configs:
+      - targets: ['worker:9000']

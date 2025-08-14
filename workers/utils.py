@@ -7,7 +7,41 @@ import pytz
 import MySQLdb as mdb
 import requests
 
+try:  # optional dependency
+    from prometheus_client import Counter, Gauge, start_http_server
+except Exception:  # pragma: no cover - metrics optional
+    Counter = Gauge = None
+
+    def start_http_server(*args, **kwargs):  # type: ignore
+        pass
+
 TZ_UTC = pytz.UTC
+
+# Prometheus metrics
+if Counter is not None:  # real metrics
+    INGESTED = Counter("ingest_items_total", "Number of ingested items", ["source"])
+    INGEST_ERRORS = Counter("ingest_errors_total", "Number of ingestion errors", ["source"])
+    FUSION_LAG = Gauge("fusion_lag_seconds", "Lag between now and last fused row", ["symbol"])
+else:  # fallbacks that expose no-ops
+    class _DummyMetric:
+        def labels(self, **kwargs):
+            return self
+
+        def inc(self, *args, **kwargs):
+            pass
+
+        def set(self, *args, **kwargs):
+            pass
+
+    INGESTED = INGEST_ERRORS = FUSION_LAG = _DummyMetric()
+
+
+def start_metrics_server():
+    """Start Prometheus metrics HTTP server if available."""
+    if Counter is None:
+        return
+    port = int(os.getenv("METRICS_PORT", "9000"))
+    start_http_server(port)
 
 class DB:
     def __init__(self):

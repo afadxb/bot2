@@ -2,7 +2,16 @@ import os
 import time
 import numpy as np
 import logging
-from utils import DB, now_utc, get_env_symbols, get_regime_adj, normalize_from_raw
+import datetime as dt
+from utils import (
+    DB,
+    now_utc,
+    get_env_symbols,
+    get_regime_adj,
+    normalize_from_raw,
+    FUSION_LAG,
+    start_metrics_server,
+)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -33,6 +42,12 @@ def load_recent(db, symbol, source):
     return scores, weights
 
 def fuse_symbol(db, symbol):
+    # compute staleness before inserting new record
+    last = db.exec(
+        "SELECT ts FROM sentiment_agg WHERE symbol=%s ORDER BY ts DESC LIMIT 1",
+        (symbol,),
+    )
+    last_ts = last[0][0] if last else None
     # news: GLOBAL
     n_scores, n_weights = load_recent(db, NEWS_SYM, 'news')
     s_scores, s_weights = [], []
@@ -61,6 +76,9 @@ def fuse_symbol(db, symbol):
         'details': { 'n_news': len(n_scores), 'n_social': len(s_scores) }
     }
     db.upsert_agg(symbol, rec)
+    if last_ts:
+        lag = (dt.datetime.utcnow() - last_ts).total_seconds()
+        FUSION_LAG.labels(symbol=symbol).set(lag)
 
 def loop():
     db = DB()
@@ -77,6 +95,8 @@ if __name__ == '__main__':
     # Simple supervisor: spawn workers in this container
     import threading
     import worker_news, worker_stocktwits
+
+    start_metrics_server()
     threading.Thread(target=worker_news.main, daemon=True).start()
     threading.Thread(target=worker_stocktwits.main, daemon=True).start()
     loop()
