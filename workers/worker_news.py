@@ -1,7 +1,11 @@
 import os
 import time
 import feedparser
+import logging
 from utils import DB, now_utc, score_batch
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 POLL_SEC = int(os.getenv('NEWS_POLL_SEC','180'))
 FEEDS = [u.strip() for u in os.getenv('NEWS_FEEDS','').split(',') if u.strip()]
@@ -29,6 +33,7 @@ def run_once():
                 h = _hash(t[:512])
                 candidates.append((h, t[:4000], {"feed": url, "link": e.get('link','')}))
         except Exception:
+            logger.exception("failed to parse feed %s", url)
             continue
     if not candidates:
         db.prune_news_hashes(HASH_TTL_HOURS)
@@ -70,7 +75,7 @@ def main():
         try:
             run_once()
         except Exception:
-            pass
+            logger.exception("worker_news cycle error")
         time.sleep(POLL_SEC)
 
 if __name__ == '__main__':

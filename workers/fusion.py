@@ -1,7 +1,11 @@
 import os
 import time
 import numpy as np
+import logging
 from utils import DB, now_utc, get_env_symbols, get_regime_adj, normalize_from_raw
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 FUSE_WINDOW_MIN = int(os.getenv('FUSE_WINDOW_MIN','120'))
 W_NEWS = float(os.getenv('SENT_W_NEWS','0.5'))
@@ -66,7 +70,7 @@ def loop():
             for sym in symbols:
                 fuse_symbol(db, sym)
         except Exception:
-            pass
+            logger.exception("fusion loop error")
         time.sleep(30)
 
 if __name__ == '__main__':
