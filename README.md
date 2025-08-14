@@ -3,9 +3,9 @@
 A production-ready sentiment layer with helpers for building a swing-trading bot (crypto & stocks).
 It combines technical signals with an AI market mood score derived from **News + Stocktwits** (default) or **News + Reddit** (optional).
 
-## Components
+## Core components
 
-The system is composed of several pieces:
+The system is composed of several components:
 
 - **FastAPI scoring service** – scores arbitrary text and exposes the `/score` and `/health` endpoints.
 - **Ingestion workers** – collect news and social data (Stocktwits by default, Reddit optional).
@@ -45,12 +45,23 @@ After configuring `.env`, build and run the stack.
 
 | Source     | Limit (free tier)                | Backoff / retry policy |
 |------------|---------------------------------|------------------------|
-| Stocktwits | ~200 requests/hour per IP       | Polls each symbol every `STOCKTWITS_POLL_SEC` (120s default). If a call fails (non-200 or network error) the worker logs it and waits until the next poll before trying again. |
+| Stocktwits | ~200 requests/hour per IP       | Polls each symbol every `STOCKTWITS_POLL_SEC` (120s default). If a call fails (non-200 or network error) the worker logs it and waits until the next poll before trying again. Circuit breaker freezes the Stocktwits component and `/latest` returns `partial: true` when outages persist. |
 | Reddit     | ~60 requests/min per OAuth token | Optional Reddit worker relies on PRAW's built-in rate limiter. It sleeps for the API-specified delay (via headers/429s) and then retries. |
+
+### Data quality & fusion policy
+
+- Headlines are deduplicated by URL hash to avoid double counting.
+- Crypto items older than 24h and equity items older than the last session are dropped.
+- The fuser requires at least three fresh items per symbol before emitting a `MoodScore`.
+- Crypto weights: news `0.5`, social `0.3`, gauge `0.2`.
+- Equity weights: news `0.6`, social `0.25`, gauge `0.15`.
+- Fusion runs separately per market so thresholds and weights can diverge.
+
+Missing sources are frozen until they recover; their scores are omitted and flagged as `partial` in `/latest`.
 
 ### Stocktwits symbol mapping
 
-Crypto pairs ending with `USD` map to Stocktwits `.X` symbols (`BTCUSD` → `BTC.X`, `ETHUSD` → `ETH.X`). Equity tickers are passed through unchanged (`TSLA` → `TSLA`). Ensure your `WATCHLIST` uses these conventions to avoid empty feeds.
+Crypto pairs ending with `USD` map to Stocktwits `.X` symbols (`BTCUSD` → `BTC.X`, `ETHUSD` → `ETH.X`). Equity tickers are passed through unchanged (`TSLA` → `TSLA`). Empty results usually indicate a ticker-format mismatch rather than a source outage, so double-check mappings before assuming Stocktwits is down.
 
 ### News feeds
 
@@ -83,17 +94,21 @@ Set up push notifications to catch issues early:
 
 The Compose stack includes two ready-to-use views:
 
-1. **Operator dashboard** (Grafana + Prometheus)
-   - Tracks ingestion throughput (`ingest_items_total`), error rates (`ingest_errors_total`),
-     fusion lag (`fusion_lag_seconds`) and API latency.
+1. **Ops dashboard** (Prometheus → Grafana)
+   - Metrics: `ingest_items_total` (rate), `ingest_errors_total` (%), `fusion_lag_seconds`, API latency p95 and service health for `db`, `sentiment`, `worker-crypto`, `worker-stocks`.
    - Metrics are exposed at `http://localhost:8000/metrics` for the API and on port `9000` for the worker.
    - Grafana runs on [http://localhost:3000](http://localhost:3000) (default `admin`/`admin`).
 
-2. **Trader dashboard** (Metabase)
-   - Renders per-symbol sentiment, component contributions and freshness directly from MySQL.
+2. **Trader dashboard** (Metabase or Superset)
+   - Built on `sentiment_agg`: watchlist table, component mix, time-series and freshness heatmap.
    - Accessible at [http://localhost:3001](http://localhost:3001) (first run prompts for admin setup).
 
 Prometheus scrapes both services with `prometheus.yml` (included). Customize Grafana/Metabase as desired.
+
+### Observability & resilience
+
+- Scorer and workers expose Prometheus metrics (`ingest_items_total`, `ingest_errors_total`, `fusion_lag_seconds`, `api_latency_seconds`).
+- Sources implement exponential backoff and circuit breakers. When a feed is down, its last score is held and `/latest` marks the result as `partial`.
 
 ## Quickstart
 
@@ -121,6 +136,13 @@ pytest
 
 The default sentiment model uses the [FinBERT](https://huggingface.co/ProsusAI/finbert) transformer fine-tuned for financial text.
 If the model isn't available at runtime, the service falls back to a lightweight heuristic stub.
+
+### Model options
+
+| Model      | Use case            | Notes |
+|------------|--------------------|-------|
+| FinBERT    | News & Stocktwits  | CPU ~50ms, faster with GPU |
+| Heuristic  | Fallback for news/social | <1ms, no dependencies |
 
 ### Verify
 - Health: `curl http://localhost:8000/health` → `{ "ok": true }`
@@ -170,7 +192,7 @@ curl "http://localhost:8000/latest?market=crypto"
 
 ### Output Tables
 - `sentiment_raw`: raw scored snippets (`market` column distinguishes crypto vs stocks)
-- `sentiment_agg`: fused per-symbol scores with regime adjustment (primary key on `market,symbol,ts`)
+- `sentiment_agg`: fused per-symbol scores with regime adjustment (`regime_adj` uses Fear & Greed for crypto and will support a VIX proxy for equities; primary key on `market,symbol,ts`)
 
 ### Bot Integration
 Read the latest mood for a symbol and gate entries / size:
@@ -182,8 +204,30 @@ ORDER BY ts DESC LIMIT 1;
 ```
 Use helpers in `bot_integration/`.
 
+Pull the latest row per symbol:
+```sql
+SELECT sa.*
+FROM sentiment_agg sa
+JOIN (
+  SELECT symbol, MAX(ts) AS max_ts
+  FROM sentiment_agg
+  WHERE market = 'crypto'
+  GROUP BY symbol
+) x ON sa.symbol = x.symbol AND sa.ts = x.max_ts
+WHERE sa.market = 'crypto';
+```
+
+### Trading recipes
+
+- **Conservative:** enter long when `mood_score` > 70 and size base; reduce or avoid when `<30`.
+- **Aggressive:** enter when `mood_score` > 60 with 1.5× size; flip short when `<25`.
+
 ### Switch to Reddit
 Set `SOURCES=news,reddit` and fill Reddit creds in `.env`. (Reddit worker can be added similarly.)
 
 ## Notes
 - Use shadow mode first: log `mood_score` impact without changing trading decisions.
+- Validation checklist:
+  1. Log only
+  2. A/B thresholds
+  3. Enable sizing
