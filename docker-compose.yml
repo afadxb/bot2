@@ -28,11 +28,27 @@ services:
       timeout: 5s
       retries: 10
 
-  worker:
+  worker-crypto:
     build: ./workers
     env_file: .env
+    environment:
+      - MARKET=crypto
     ports:
       - "9000:9000"
+    depends_on:
+      db:
+        condition: service_healthy
+      sentiment:
+        condition: service_healthy
+    restart: unless-stopped
+
+  worker-stocks:
+    build: ./workers
+    env_file: .env
+    environment:
+      - MARKET=stocks
+    ports:
+      - "9001:9000"
     depends_on:
       db:
         condition: service_healthy
@@ -48,7 +64,8 @@ services:
       - "9090:9090"
     depends_on:
       - sentiment
-      - worker
+      - worker-crypto
+      - worker-stocks
 
   grafana:
     image: grafana/grafana-oss

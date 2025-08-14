@@ -2,7 +2,7 @@ import os
 import time
 import requests
 import logging
-from utils import DB, now_utc, score_batch, get_env_symbols, INGESTED, INGEST_ERRORS
+from utils import DB, now_utc, score_batch, get_env_symbols, INGESTED, INGEST_ERRORS, MARKET
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -41,6 +41,7 @@ def run_once():
             rows = [
                 {
                     'ts': ts,
+                    'market': MARKET,
                     'symbol': sym,
                     'source': 'stocktwits',
                     'text': t,

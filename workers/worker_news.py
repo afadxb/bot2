@@ -2,7 +2,7 @@ import os
 import time
 import feedparser
 import logging
-from utils import DB, now_utc, score_batch, INGESTED, INGEST_ERRORS
+from utils import DB, now_utc, score_batch, INGESTED, INGEST_ERRORS, MARKET
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -59,6 +59,7 @@ def run_once():
     for t, s, m in zip(texts, scores, metas):
         rows.append({
             'ts': ts,
+            'market': MARKET,
             'symbol': 'GLOBAL',           # news often market-wide; fusion maps per symbol later
             'source': 'news',
             'text': t,

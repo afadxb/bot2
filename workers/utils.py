@@ -16,6 +16,7 @@ except Exception:  # pragma: no cover - metrics optional
         pass
 
 TZ_UTC = pytz.UTC
+MARKET = os.getenv("MARKET", "crypto")
 
 # Prometheus metrics
 if Counter is not None:  # real metrics
@@ -61,22 +62,51 @@ class DB:
             return cur.fetchall()
 
     def insert_raw(self, rows):
-        if not rows: return 0
-        q = ("INSERT INTO sentiment_raw (ts, symbol, source, text, raw_score, quality, meta) "
-             "VALUES (%s,%s,%s,%s,%s,%s,%s)")
+        if not rows:
+            return 0
+        q = (
+            "INSERT INTO sentiment_raw (ts, market, symbol, source, text, raw_score, quality, meta) "
+            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s)"
+        )
         with self.conn.cursor() as cur:
-            cur.executemany(q, [(
-                r['ts'], r['symbol'], r['source'], r['text'], r.get('raw_score'), r.get('quality',1.0), json.dumps(r.get('meta',{}))
-            ) for r in rows])
+            cur.executemany(
+                q,
+                [
+                    (
+                        r['ts'],
+                        r.get('market', MARKET),
+                        r['symbol'],
+                        r['source'],
+                        r['text'],
+                        r.get('raw_score'),
+                        r.get('quality', 1.0),
+                        json.dumps(r.get('meta', {})),
+                    )
+                    for r in rows
+                ],
+            )
         return len(rows)
 
-    def upsert_agg(self, symbol, rec):
-        q = ("REPLACE INTO sentiment_agg (symbol, ts, news_score, social_score, mood_score, regime_adj, details) "
-             "VALUES (%s,%s,%s,%s,%s,%s,%s)")
+    def upsert_agg(self, symbol, rec, market: str | None = None):
+        q = (
+            "REPLACE INTO sentiment_agg (market, symbol, ts, news_score, social_score, mood_score, regime_adj, details) "
+            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s)"
+        )
+        mkt = market or rec.get('market') or MARKET
         with self.conn.cursor() as cur:
-            cur.execute(q, (
-                symbol, rec['ts'], rec.get('news_score'), rec.get('social_score'), rec.get('mood_score'), rec.get('regime_adj'), json.dumps(rec.get('details',{}))
-            ))
+            cur.execute(
+                q,
+                (
+                    mkt,
+                    symbol,
+                    rec['ts'],
+                    rec.get('news_score'),
+                    rec.get('social_score'),
+                    rec.get('mood_score'),
+                    rec.get('regime_adj'),
+                    json.dumps(rec.get('details', {})),
+                ),
+            )
 
     def get_news_hashes(self, hashes):
         if not hashes:

@@ -2,7 +2,11 @@ scrape_configs:
   - job_name: sentiment
     static_configs:
       - targets: ['sentiment:8000']
-  - job_name: worker
+  - job_name: worker-crypto
     metrics_path: /
     static_configs:
-      - targets: ['worker:9000']
+      - targets: ['worker-crypto:9000']
+  - job_name: worker-stocks
+    metrics_path: /
+    static_configs:
+      - targets: ['worker-stocks:9000']
