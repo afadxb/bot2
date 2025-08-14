@@ -1,10 +1,11 @@
-# trading-mood-bot
+# Trading Mood Bot
 
-Production-ready sentiment layer + helpers for a swing-trading bot (crypto & stocks). Combines **technical signals** with an **AI market mood score** derived from **News + Stocktwits** (default) or **News + Reddit** (optional).
+A production-ready sentiment layer with helpers for building a swing-trading bot (crypto & stocks).
+It combines technical signals with an AI market mood score derived from **News + Stocktwits** (default) or **News + Reddit** (optional).
 
-## Architecture
+## Components
 
-The system is composed of three core pieces:
+The system is composed of several pieces:
 
 - **FastAPI scoring service** – scores arbitrary text and exposes the `/score` and `/health` endpoints.
 - **Ingestion workers** – collect news and social data (Stocktwits by default, Reddit optional).
@@ -44,8 +45,8 @@ After configuring `.env`, build and run the stack.
 
 | Source     | Limit (free tier)                | Backoff / retry policy |
 |------------|---------------------------------|------------------------|
-| Stocktwits | ~200 requests/hour per IP       | Polls each symbol every `STOCKTWITS_POLL_SEC` (120s default). If a call fails (non‑200 or network error) the worker logs it and waits until the next poll before trying again. |
-| Reddit     | ~60 requests/min per OAuth token | Optional Reddit worker relies on PRAW's built‑in rate limiter. It sleeps for the API‑specified delay (via headers/429s) and then retries. |
+| Stocktwits | ~200 requests/hour per IP       | Polls each symbol every `STOCKTWITS_POLL_SEC` (120s default). If a call fails (non-200 or network error) the worker logs it and waits until the next poll before trying again. |
+| Reddit     | ~60 requests/min per OAuth token | Optional Reddit worker relies on PRAW's built-in rate limiter. It sleeps for the API-specified delay (via headers/429s) and then retries. |
 
 ### Stocktwits symbol mapping
 
@@ -53,7 +54,7 @@ Crypto pairs ending with `USD` map to Stocktwits `.X` symbols (`BTCUSD` → `BTC
 
 ### News feeds
 
-Set `NEWS_FEEDS` to a comma‑separated list of RSS URLs. Suggested defaults:
+Set `NEWS_FEEDS` to a comma-separated list of RSS URLs. Suggested defaults:
 
 - https://feeds.reuters.com/reuters/businessNews
 - https://finance.yahoo.com/news/rss
@@ -66,7 +67,7 @@ Example:
 NEWS_FEEDS="https://feeds.reuters.com/reuters/businessNews,https://finance.yahoo.com/news/rss,https://www.coindesk.com/arc/outboundfeeds/rss/?output=xml,https://cointelegraph.com/rss"
 ```
 
-Regional variants exist for Reuters/Yahoo (e.g., world, US, EU editions). You can also add per‑ticker feeds for equities such as `https://finance.yahoo.com/rss/headline?s=TSLA`.
+Regional variants exist for Reuters/Yahoo (e.g., world, US, EU editions). You can also add per-ticker feeds for equities such as `https://finance.yahoo.com/rss/headline?s=TSLA`.
 
 ### Alerts (Pushover)
 
@@ -80,7 +81,7 @@ Set up push notifications to catch issues early:
 
 ### Dashboards
 
-The Compose stack includes two ready‑to‑use views:
+The Compose stack includes two ready-to-use views:
 
 1. **Operator dashboard** (Grafana + Prometheus)
    - Tracks ingestion throughput (`ingest_items_total`), error rates (`ingest_errors_total`),
@@ -89,12 +90,14 @@ The Compose stack includes two ready‑to‑use views:
    - Grafana runs on [http://localhost:3000](http://localhost:3000) (default `admin`/`admin`).
 
 2. **Trader dashboard** (Metabase)
-   - Renders per‑symbol sentiment, component contributions and freshness directly from MySQL.
+   - Renders per-symbol sentiment, component contributions and freshness directly from MySQL.
    - Accessible at [http://localhost:3001](http://localhost:3001) (first run prompts for admin setup).
 
 Prometheus scrapes both services with `prometheus.yml` (included). Customize Grafana/Metabase as desired.
 
 ## Quickstart
+
+Ensure Docker and Docker Compose are installed.
 
 ```bash
 cp .env.example .env
@@ -110,7 +113,7 @@ Services:
 
 ## Development
 
-Run the test suite to ensure everything is functioning:
+Run the test suite from the project root to ensure everything is functioning:
 
 ```bash
 pytest
