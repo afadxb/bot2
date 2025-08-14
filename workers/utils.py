@@ -1,8 +1,7 @@
 import os
-import time
 import json
-import hashlib
 import datetime as dt
+import importlib
 import pytz
 import MySQLdb as mdb
 import requests
@@ -17,6 +16,17 @@ except Exception:  # pragma: no cover - metrics optional
 
 TZ_UTC = pytz.UTC
 MARKET = os.getenv("MARKET", "crypto")
+
+# Load market specific configuration
+try:
+    _cfg = importlib.import_module(f"markets.{MARKET}")
+except Exception as exc:  # pragma: no cover - config must exist
+    raise RuntimeError(f"unknown market config: {MARKET}") from exc
+
+WATCHLIST = getattr(_cfg, "WATCHLIST", [])
+WEIGHTS = getattr(_cfg, "WEIGHTS", {})
+REGIME_GAUGE = getattr(_cfg, "REGIME_GAUGE", "")
+FRESHNESS_SECONDS = getattr(_cfg, "FRESHNESS_SECONDS", 300)
 
 # Prometheus metrics
 if Counter is not None:  # real metrics
@@ -137,11 +147,12 @@ def score_batch(texts):
     r.raise_for_status()
     return r.json()["scores"]
 
-def get_env_symbols():
-    return [s.strip() for s in os.getenv('WATCHLIST','BTCUSD').split(',') if s.strip()]
+def get_symbols():
+    """Return configured symbols for the active market."""
+    return list(WATCHLIST)
 
 def get_regime_adj(min_val=0.6):
-    # Placeholder: 1.0 (no dampening). Wire VIX or crypto vol index later.
+    # Placeholder that could use REGIME_GAUGE in future.
     return max(min_val, 1.0)
 
 def normalize_from_raw(raw_score):

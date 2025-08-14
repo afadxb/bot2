@@ -33,11 +33,13 @@ cp .env.example .env
 
 Key variables:
 
-- `WATCHLIST` – comma separated symbols to monitor
 - `SOURCES` – feeds to enable (`news,stocktwits` by default, add `reddit` if desired)
 - `NEWS_FEEDS` – comma separated RSS URLs for the news worker
 - Database credentials for the MySQL instance
 - `METRICS_PORT` – port for worker Prometheus metrics (default `9000`)
+
+Market-specific watchlists, component weights, regime gauge type and freshness
+rules now live in `markets/crypto.py` and `markets/stocks.py`.
 
 After configuring `.env`, build and run the stack.
 
@@ -100,7 +102,8 @@ The Compose stack includes two ready-to-use views:
    - Grafana runs on [http://localhost:3000](http://localhost:3000) (default `admin`/`admin`).
 
 2. **Trader dashboard** (Metabase or Superset)
-   - Built on `sentiment_agg`: watchlist table, component mix, time-series and freshness heatmap.
+   - Built on `sentiment_agg`: watchlist table, per-symbol sentiment time-series,
+     component mix, regime over time and freshness heatmap.
    - Accessible at [http://localhost:3001](http://localhost:3001) (first run prompts for admin setup).
 
 Prometheus scrapes both services with `prometheus.yml` (included). Customize Grafana/Metabase as desired.
@@ -116,7 +119,8 @@ Ensure Docker and Docker Compose are installed.
 
 ```bash
 cp .env.example .env
-# edit .env to set WATCHLIST, DB creds, feeds, etc.
+# edit markets/crypto.py and markets/stocks.py for watchlists and weights
+# edit .env to set DB creds, feeds, etc.
 docker-compose up --build
 ```
 

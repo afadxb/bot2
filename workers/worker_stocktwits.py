@@ -2,7 +2,7 @@ import os
 import time
 import requests
 import logging
-from utils import DB, now_utc, score_batch, get_env_symbols, INGESTED, INGEST_ERRORS, MARKET
+from utils import DB, now_utc, score_batch, get_symbols, INGESTED, INGEST_ERRORS, MARKET
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -28,7 +28,7 @@ def fetch_stocktwits(symbol):
     return texts
 
 def run_once():
-    symbols = get_env_symbols()
+    symbols = get_symbols()
     db = DB()
     total = 0
     for sym in symbols:
