@@ -11,6 +11,7 @@ from utils import (
     normalize_from_raw,
     FUSION_LAG,
     start_metrics_server,
+    MARKET,
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -34,9 +35,11 @@ def wavg(values, weights):
     return float((v*w).sum() / (w.sum() + 1e-9))
 
 def load_recent(db, symbol, source):
-    q = ("SELECT raw_score, quality FROM sentiment_raw "
-         "WHERE ts >= NOW() - INTERVAL %s MINUTE AND symbol=%s AND source=%s")
-    rows = db.exec(q, (FUSE_WINDOW_MIN, symbol, source))
+    q = (
+        "SELECT raw_score, quality FROM sentiment_raw "
+        "WHERE ts >= NOW() - INTERVAL %s MINUTE AND market=%s AND symbol=%s AND source=%s"
+    )
+    rows = db.exec(q, (FUSE_WINDOW_MIN, MARKET, symbol, source))
     scores = [normalize_from_raw(r[0]) for r in rows]  # -> 0..100
     weights = [r[1] for r in rows]
     return scores, weights
@@ -44,8 +47,8 @@ def load_recent(db, symbol, source):
 def fuse_symbol(db, symbol):
     # compute staleness before inserting new record
     last = db.exec(
-        "SELECT ts FROM sentiment_agg WHERE symbol=%s ORDER BY ts DESC LIMIT 1",
-        (symbol,),
+        "SELECT ts FROM sentiment_agg WHERE market=%s AND symbol=%s ORDER BY ts DESC LIMIT 1",
+        (MARKET, symbol),
     )
     last_ts = last[0][0] if last else None
     # news: GLOBAL
@@ -75,7 +78,7 @@ def fuse_symbol(db, symbol):
         'regime_adj': regime,
         'details': { 'n_news': len(n_scores), 'n_social': len(s_scores) }
     }
-    db.upsert_agg(symbol, rec)
+    db.upsert_agg(symbol, rec, market=MARKET)
     if last_ts:
         lag = (dt.datetime.utcnow() - last_ts).total_seconds()
         FUSION_LAG.labels(symbol=symbol).set(lag)

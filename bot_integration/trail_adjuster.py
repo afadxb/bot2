@@ -1,7 +1,7 @@
 from .mood_gate import get_latest_mood
 
-def trail_params(k_atr: float, p_trail: float, symbol: str) -> tuple[float,float]:
-    mood = get_latest_mood(symbol)
+def trail_params(k_atr: float, p_trail: float, symbol: str, market: str | None = None) -> tuple[float,float]:
+    mood = get_latest_mood(symbol, market)
     if mood is None:
         return k_atr, p_trail
     if mood < 40:

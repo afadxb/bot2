@@ -105,7 +105,8 @@ docker-compose up --build
 Services:
 - **db**: MySQL 8
 - **sentiment**: FastAPI scoring (CPU-only by default)
-- **worker**: ingestors (news + stocktwits) + fuser (runs continuously)
+- **worker-crypto**: ingestors (news + stocktwits) + fuser for crypto symbols
+- **worker-stocks**: ingestors (news + stocktwits) + fuser for equities
 
 ## Development
 
@@ -131,12 +132,12 @@ Fetch fused sentiment without touching MySQL:
 
 ```bash
 # Per-symbol latest
-curl http://localhost:8000/sentiment?symbol=BTCUSD
-curl http://localhost:8000/sentiment?symbol=DOGEUSD
-curl http://localhost:8000/sentiment?symbol=TSLA
+curl "http://localhost:8000/sentiment?market=crypto&symbol=BTCUSD"
+curl "http://localhost:8000/sentiment?market=crypto&symbol=DOGEUSD"
+curl "http://localhost:8000/sentiment?market=stocks&symbol=TSLA"
 
-# Batch latest for all symbols
-curl http://localhost:8000/latest
+# Batch latest for all symbols in a market
+curl "http://localhost:8000/latest?market=crypto"
 ```
 
 `/sentiment` returns:
@@ -165,15 +166,15 @@ curl http://localhost:8000/latest
 ```
 
 ### Output Tables
-- `sentiment_raw`: raw scored snippets
-- `sentiment_agg`: fused per-symbol scores with regime adjustment
+- `sentiment_raw`: raw scored snippets (`market` column distinguishes crypto vs stocks)
+- `sentiment_agg`: fused per-symbol scores with regime adjustment (primary key on `market,symbol,ts`)
 
 ### Bot Integration
 Read the latest mood for a symbol and gate entries / size:
 ```sql
 SELECT mood_score
 FROM sentiment_agg
-WHERE symbol = 'BTCUSD'
+WHERE market = 'crypto' AND symbol = 'BTCUSD'
 ORDER BY ts DESC LIMIT 1;
 ```
 Use helpers in `bot_integration/`.

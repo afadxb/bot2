@@ -129,7 +129,7 @@ def score(item: Item):
 
 
 @app.get("/sentiment")
-def sentiment(symbol: str):
+def sentiment(symbol: str, market: str = "crypto"):
     """Return latest fused sentiment for a symbol."""
     try:
         conn = _get_conn()
@@ -139,8 +139,8 @@ def sentiment(symbol: str):
     with conn.cursor() as cur:
         cur.execute(
             "SELECT ts, news_score, social_score, mood_score, regime_adj "
-            "FROM sentiment_agg WHERE symbol=%s ORDER BY ts DESC LIMIT 1",
-            (symbol,),
+            "FROM sentiment_agg WHERE market=%s AND symbol=%s ORDER BY ts DESC LIMIT 1",
+            (market, symbol),
         )
         row = cur.fetchone()
     if not row:
@@ -157,8 +157,8 @@ def sentiment(symbol: str):
 
 
 @app.get("/latest")
-def latest():
-    """Return latest fused sentiment for all symbols."""
+def latest(market: str = "crypto"):
+    """Return latest fused sentiment for all symbols in a market."""
     try:
         conn = _get_conn()
     except Exception as exc:  # pragma: no cover - exercised when db missing
@@ -167,8 +167,9 @@ def latest():
     with conn.cursor() as cur:
         cur.execute(
             "SELECT s.symbol, s.ts, s.news_score, s.social_score, s.mood_score, s.regime_adj "
-            "FROM sentiment_agg s JOIN (SELECT symbol, MAX(ts) ts FROM sentiment_agg GROUP BY symbol) m "
-            "ON s.symbol=m.symbol AND s.ts=m.ts"
+            "FROM sentiment_agg s JOIN (SELECT symbol, MAX(ts) ts FROM sentiment_agg WHERE market=%s GROUP BY symbol) m "
+            "ON s.symbol=m.symbol AND s.ts=m.ts AND s.market=%s",
+            (market, market),
         )
         rows = cur.fetchall()
     res = []

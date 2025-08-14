@@ -3,6 +3,7 @@ import os
 import threading
 
 _conn_local = threading.local()
+MARKET = os.getenv("MARKET", "crypto")
 
 def _get_conn():
     conn = getattr(_conn_local, "conn", None)
@@ -18,18 +19,19 @@ def _get_conn():
         )
     return _conn_local.conn
 
-def get_latest_mood(symbol: str) -> float | None:
+def get_latest_mood(symbol: str, market: str | None = None) -> float | None:
     conn = _get_conn()
+    mkt = market or MARKET
     with conn.cursor() as cur:
         cur.execute(
-            "SELECT mood_score FROM sentiment_agg WHERE symbol=%s ORDER BY ts DESC LIMIT 1",
-            (symbol,),
+            "SELECT mood_score FROM sentiment_agg WHERE market=%s AND symbol=%s ORDER BY ts DESC LIMIT 1",
+            (mkt, symbol),
         )
         row = cur.fetchone()
         return float(row[0]) if row else None
 
-def entry_allowed(symbol: str, entry_block: int = None) -> bool:
-    mood = get_latest_mood(symbol)
+def entry_allowed(symbol: str, entry_block: int = None, market: str | None = None) -> bool:
+    mood = get_latest_mood(symbol, market)
     if mood is None:
         return True  # no sentiment -> do not block
     block = int(entry_block or int(os.getenv('ENTRY_BLOCK','30')))
