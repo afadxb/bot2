@@ -2,7 +2,7 @@ import os
 import time
 import feedparser
 import logging
-from utils import DB, now_utc, score_batch
+from utils import DB, now_utc, score_batch, INGESTED, INGEST_ERRORS
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -34,6 +34,7 @@ def run_once():
                 candidates.append((h, t[:4000], {"feed": url, "link": e.get('link','')}))
         except Exception:
             logger.exception("failed to parse feed %s", url)
+            INGEST_ERRORS.labels(source='news').inc()
             continue
     if not candidates:
         db.prune_news_hashes(HASH_TTL_HOURS)
@@ -65,7 +66,8 @@ def run_once():
             'quality': 1.0,
             'meta': m
         })
-    db.insert_raw(rows)
+    inserted = db.insert_raw(rows)
+    INGESTED.labels(source='news').inc(inserted)
     db.insert_news_hashes(new_hashes)
     db.prune_news_hashes(HASH_TTL_HOURS)
     return len(rows)
@@ -76,6 +78,7 @@ def main():
             run_once()
         except Exception:
             logger.exception("worker_news cycle error")
+            INGEST_ERRORS.labels(source='news').inc()
         time.sleep(POLL_SEC)
 
 if __name__ == '__main__':

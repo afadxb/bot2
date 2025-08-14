@@ -2,7 +2,7 @@ import os
 import time
 import requests
 import logging
-from utils import DB, now_utc, score_batch, get_env_symbols
+from utils import DB, now_utc, score_batch, get_env_symbols, INGESTED, INGEST_ERRORS
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -50,9 +50,12 @@ def run_once():
                 }
                 for t, s in zip(texts, scores)
             ]
-            total += db.insert_raw(rows)
+            inserted = db.insert_raw(rows)
+            INGESTED.labels(source='stocktwits').inc(inserted)
+            total += inserted
         except Exception:
             logger.exception("failed processing stocktwits for %s", sym)
+            INGEST_ERRORS.labels(source='stocktwits').inc()
             continue
     return total
 
@@ -62,6 +65,7 @@ def main():
             run_once()
         except Exception:
             logger.exception("worker_stocktwits cycle error")
+            INGEST_ERRORS.labels(source='stocktwits').inc()
         time.sleep(POLL_SEC)
 
 if __name__ == '__main__':

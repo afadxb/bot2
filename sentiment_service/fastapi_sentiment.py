@@ -14,6 +14,14 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
+# Optional Prometheus instrumentation
+try:  # pragma: no cover - optional dependency
+    from prometheus_fastapi_instrumentator import Instrumentator
+
+    Instrumentator().instrument(app).expose(app)
+except Exception as exc:  # pragma: no cover - handled gracefully
+    logger.warning("Prometheus instrumentation disabled: %s", exc)
+
 
 class Item(BaseModel):
     texts: List[str]

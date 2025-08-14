@@ -31,6 +31,8 @@ services:
   worker:
     build: ./workers
     env_file: .env
+    ports:
+      - "9000:9000"
     depends_on:
       db:
         condition: service_healthy
@@ -38,5 +40,37 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  prometheus:
+    image: prom/prometheus
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+    depends_on:
+      - sentiment
+      - worker
+
+  grafana:
+    image: grafana/grafana-oss
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    volumes:
+      - grafana-data:/var/lib/grafana
+
+  metabase:
+    image: metabase/metabase
+    ports:
+      - "3001:3000"
+    depends_on:
+      - db
+    environment:
+      - MB_DB_FILE=/metabase.db
+    volumes:
+      - metabase-data:/metabase
+
 volumes:
   dbdata:
+  grafana-data:
+  metabase-data:
