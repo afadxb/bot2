@@ -1,7 +1,11 @@
 import os
 import time
 import requests
+import logging
 from utils import DB, now_utc, score_batch, get_env_symbols
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 POLL_SEC = int(os.getenv('STOCKTWITS_POLL_SEC','120'))
 
@@ -34,17 +38,21 @@ def run_once():
                 continue
             scores = score_batch(texts)
             ts = now_utc()
-            rows = [{
-                'ts': ts,
-                'symbol': sym,
-                'source': 'stocktwits',
-                'text': t,
-                'raw_score': (s-50)/50.0,
-                'quality': 1.0,
-                'meta': None
-            } for t, s in zip(texts, scores)]
+            rows = [
+                {
+                    'ts': ts,
+                    'symbol': sym,
+                    'source': 'stocktwits',
+                    'text': t,
+                    'raw_score': (s - 50) / 50.0,
+                    'quality': 1.0,
+                    'meta': None,
+                }
+                for t, s in zip(texts, scores)
+            ]
             total += db.insert_raw(rows)
         except Exception:
+            logger.exception("failed processing stocktwits for %s", sym)
             continue
     return total
 
@@ -53,7 +61,7 @@ def main():
         try:
             run_once()
         except Exception:
-            pass
+            logger.exception("worker_stocktwits cycle error")
         time.sleep(POLL_SEC)
 
 if __name__ == '__main__':
