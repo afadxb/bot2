@@ -2,6 +2,10 @@ import os
 import time
 import feedparser
 import logging
+import sys
+
+sys.path.append(os.path.dirname(__file__) + '/..')
+from alerts import monitor
 from utils import DB, now_utc, score_batch
 
 logging.basicConfig(level=logging.INFO)
@@ -74,7 +78,9 @@ def main():
     while True:
         try:
             run_once()
+            monitor.record_ingestion(True)
         except Exception:
+            monitor.record_ingestion(False)
             logger.exception("worker_news cycle error")
         time.sleep(POLL_SEC)
 

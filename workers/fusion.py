@@ -2,6 +2,10 @@ import os
 import time
 import numpy as np
 import logging
+import sys
+
+sys.path.append(os.path.dirname(__file__) + '/..')
+from alerts import monitor
 from utils import DB, now_utc, get_env_symbols, get_regime_adj, normalize_from_raw
 
 logging.basicConfig(level=logging.INFO)
@@ -61,6 +65,7 @@ def fuse_symbol(db, symbol):
         'details': { 'n_news': len(n_scores), 'n_social': len(s_scores) }
     }
     db.upsert_agg(symbol, rec)
+    monitor.record_fused(symbol, symbol.endswith('USD'))
 
 def loop():
     db = DB()
@@ -69,6 +74,7 @@ def loop():
         try:
             for sym in symbols:
                 fuse_symbol(db, sym)
+            monitor.check_freshness_all(symbols)
         except Exception:
             logger.exception("fusion loop error")
         time.sleep(30)

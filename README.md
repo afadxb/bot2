@@ -71,6 +71,8 @@ Regional variants exist for Reuters/Yahoo (e.g., world, US, EU editions). You ca
 
 Set up push notifications to catch issues early:
 
+Set the `PUSHOVER_TOKEN` and `PUSHOVER_USER` environment variables to enable alerts.
+
 - **Freshness breach** – no crypto updates for >2m or equities for >5m
 - **Ingestion error_rate** – >5% failures over a 10m window
 - **Cache hit ratio** – drops below 60%
