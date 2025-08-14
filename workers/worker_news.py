@@ -6,7 +6,7 @@ from utils import DB, now_utc, score_batch
 POLL_SEC = int(os.getenv('NEWS_POLL_SEC','180'))
 FEEDS = [u.strip() for u in os.getenv('NEWS_FEEDS','').split(',') if u.strip()]
 
-HASH_SET = set()  # simple in-memory dedupe for demo; move to DB if needed.
+HASH_TTL_HOURS = int(os.getenv('NEWS_HASH_TTL_HOURS','168'))
 
 def _hash(s):
     import hashlib
@@ -15,8 +15,8 @@ def _hash(s):
 def run_once():
     if not FEEDS:
         return 0
-    texts = []
-    metas = []
+    db = DB()
+    candidates = []
     for url in FEEDS:
         try:
             d = feedparser.parse(url)
@@ -24,15 +24,28 @@ def run_once():
                 title = e.get('title','')
                 summ = e.get('summary','')
                 t = (title + ' ' + summ).strip()
-                if not t: continue
+                if not t:
+                    continue
                 h = _hash(t[:512])
-                if h in HASH_SET: continue
-                HASH_SET.add(h)
-                texts.append(t[:4000])
-                metas.append({"feed": url, "link": e.get('link','')})
+                candidates.append((h, t[:4000], {"feed": url, "link": e.get('link','')}))
         except Exception:
             continue
+    if not candidates:
+        db.prune_news_hashes(HASH_TTL_HOURS)
+        return 0
+    hashes = [h for h, _, _ in candidates]
+    existing = db.get_news_hashes(hashes)
+    texts = []
+    metas = []
+    new_hashes = []
+    for h, t, m in candidates:
+        if h in existing:
+            continue
+        texts.append(t)
+        metas.append(m)
+        new_hashes.append(h)
     if not texts:
+        db.prune_news_hashes(HASH_TTL_HOURS)
         return 0
     scores = score_batch(texts)
     rows = []
@@ -47,7 +60,9 @@ def run_once():
             'quality': 1.0,
             'meta': m
         })
-    DB().insert_raw(rows)
+    db.insert_raw(rows)
+    db.insert_news_hashes(new_hashes)
+    db.prune_news_hashes(HASH_TTL_HOURS)
     return len(rows)
 
 def main():

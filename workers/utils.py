@@ -44,6 +44,26 @@ class DB:
                 symbol, rec['ts'], rec.get('news_score'), rec.get('social_score'), rec.get('mood_score'), rec.get('regime_adj'), json.dumps(rec.get('details',{}))
             ))
 
+    def get_news_hashes(self, hashes):
+        if not hashes:
+            return set()
+        q = "SELECT hash FROM news_hashes WHERE hash IN (" + ",".join(["%s"] * len(hashes)) + ")"
+        rows = self.exec(q, list(hashes))
+        return {r[0] for r in rows}
+
+    def insert_news_hashes(self, hashes):
+        if not hashes:
+            return 0
+        q = "INSERT IGNORE INTO news_hashes (hash, ts) VALUES (%s, NOW())"
+        with self.conn.cursor() as cur:
+            cur.executemany(q, [(h,) for h in hashes])
+        return len(hashes)
+
+    def prune_news_hashes(self, max_age_hours):
+        q = "DELETE FROM news_hashes WHERE ts < NOW() - INTERVAL %s HOUR"
+        with self.conn.cursor() as cur:
+            cur.execute(q, (max_age_hours,))
+
 def now_utc():
     return dt.datetime.now(tz=TZ_UTC).strftime('%Y-%m-%d %H:%M:%S')
 
