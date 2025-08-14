@@ -6,20 +6,21 @@ import datetime as dt
 from utils import (
     DB,
     now_utc,
-    get_env_symbols,
+    get_symbols,
     get_regime_adj,
     normalize_from_raw,
     FUSION_LAG,
     start_metrics_server,
     MARKET,
+    WEIGHTS,
 )
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 FUSE_WINDOW_MIN = int(os.getenv('FUSE_WINDOW_MIN','120'))
-W_NEWS = float(os.getenv('SENT_W_NEWS','0.5'))
-W_SOC  = float(os.getenv('SENT_W_SOCIAL','0.5'))
+W_NEWS = WEIGHTS.get('news', 0.5)
+W_SOC = WEIGHTS.get('social', 0.5)
 
 ENTRY_BLOCK = int(os.getenv('ENTRY_BLOCK','30'))
 SIZE_UP = int(os.getenv('SIZE_UP','70'))
@@ -85,7 +86,7 @@ def fuse_symbol(db, symbol):
 
 def loop():
     db = DB()
-    symbols = get_env_symbols()
+    symbols = get_symbols()
     while True:
         try:
             for sym in symbols:
