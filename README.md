@@ -59,7 +59,8 @@ Run the test suite to ensure everything is functioning:
 pytest
 ```
 
-The default sentiment model is a lightweight heuristic stub; swap in a stronger model such as FinBERT by editing `sentiment_service/fastapi_sentiment.py`.
+The default sentiment model uses the [FinBERT](https://huggingface.co/ProsusAI/finbert) transformer fine-tuned for financial text.
+If the model isn't available at runtime, the service falls back to a lightweight heuristic stub.
 
 ### Verify
 - Health: `curl http://localhost:8000/health` → `{ "ok": true }`
@@ -68,6 +69,43 @@ The default sentiment model is a lightweight heuristic stub; swap in a stronger 
 curl -X POST http://localhost:8000/score \
   -H 'Content-Type: application/json' \
   -d '{"texts":["stock up on strong guidance","coin plunges after hack"]}'
+```
+
+Fetch fused sentiment without touching MySQL:
+
+```bash
+# Per-symbol latest
+curl http://localhost:8000/sentiment?symbol=BTCUSD
+curl http://localhost:8000/sentiment?symbol=DOGEUSD
+curl http://localhost:8000/sentiment?symbol=TSLA
+
+# Batch latest for all symbols
+curl http://localhost:8000/latest
+```
+
+`/sentiment` returns:
+
+```json
+{
+  "symbol": "BTCUSD",
+  "ts": "2024-01-01T00:00:00",
+  "news_score": 70.2,
+  "social_score": 64.1,
+  "mood_score": 67.5,
+  "regime_adj": 1.0
+}
+```
+
+`/latest` returns:
+
+```json
+{
+  "results": [
+    {"symbol": "BTCUSD", "mood_score": 67.5, "news_score": 70.2, "social_score": 64.1, "regime_adj": 1.0, "ts": "2024-01-01T00:00:00"},
+    {"symbol": "DOGEUSD", "mood_score": 42.1, "news_score": 40.0, "social_score": 43.2, "regime_adj": 1.0, "ts": "2024-01-01T00:00:00"},
+    {"symbol": "TSLA", "mood_score": 55.0, "news_score": 60.0, "social_score": 50.0, "regime_adj": 1.0, "ts": "2024-01-01T00:00:00"}
+  ]
+}
 ```
 
 ### Output Tables
