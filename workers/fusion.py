@@ -59,15 +59,15 @@ def fuse_symbol(db, symbol):
     db.upsert_agg(symbol, rec)
 
 def loop():
-    db = DB()
     symbols = get_env_symbols()
-    while True:
-        try:
-            for sym in symbols:
-                fuse_symbol(db, sym)
-        except Exception:
-            pass
-        time.sleep(30)
+    with DB() as db:
+        while True:
+            try:
+                for sym in symbols:
+                    fuse_symbol(db, sym)
+            except Exception:
+                pass
+            time.sleep(30)
 
 if __name__ == '__main__':
     # Simple supervisor: spawn workers in this container

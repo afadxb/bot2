@@ -25,27 +25,27 @@ def fetch_stocktwits(symbol):
 
 def run_once():
     symbols = get_env_symbols()
-    db = DB()
     total = 0
-    for sym in symbols:
-        try:
-            texts = fetch_stocktwits(sym)
-            if not texts:
+    with DB() as db:
+        for sym in symbols:
+            try:
+                texts = fetch_stocktwits(sym)
+                if not texts:
+                    continue
+                scores = score_batch(texts)
+                ts = now_utc()
+                rows = [{
+                    'ts': ts,
+                    'symbol': sym,
+                    'source': 'stocktwits',
+                    'text': t,
+                    'raw_score': (s-50)/50.0,
+                    'quality': 1.0,
+                    'meta': None
+                } for t, s in zip(texts, scores)]
+                total += db.insert_raw(rows)
+            except Exception:
                 continue
-            scores = score_batch(texts)
-            ts = now_utc()
-            rows = [{
-                'ts': ts,
-                'symbol': sym,
-                'source': 'stocktwits',
-                'text': t,
-                'raw_score': (s-50)/50.0,
-                'quality': 1.0,
-                'meta': None
-            } for t, s in zip(texts, scores)]
-            total += db.insert_raw(rows)
-        except Exception:
-            continue
     return total
 
 def main():

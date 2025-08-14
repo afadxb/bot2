@@ -21,6 +21,19 @@ class DB:
             autocommit=True,
         )
 
+    # Support use as a context manager to ensure connections are closed
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        self.close()
+
+    def close(self):
+        try:
+            self.conn.close()
+        except Exception:
+            pass
+
     def exec(self, q, args=None):
         with self.conn.cursor() as cur:
             cur.execute(q, args or ())

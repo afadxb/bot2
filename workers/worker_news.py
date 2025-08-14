@@ -47,7 +47,9 @@ def run_once():
             'quality': 1.0,
             'meta': m
         })
-    DB().insert_raw(rows)
+    if rows:
+        with DB() as db:
+            db.insert_raw(rows)
     return len(rows)
 
 def main():
